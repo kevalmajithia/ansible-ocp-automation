@@ -1,64 +1,114 @@
+```yaml
 ---
-- name: Deploy Nginx on OpenShift
+- name: Deploy Nginx application on OpenShift (via oc commands)
   hosts: localhost
+  connection: local
   gather_facts: false
   tasks:
-    - name: Create Nginx Deployment
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: nginx
-            namespace: default
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: nginx
-            template:
-              metadata:
-                labels:
-                  app: nginx
-              spec:
-                containers:
-                  - name: nginx
-                    image: nginx:latest
-                    ports:
-                      - containerPort: 80
+    - name: Verify oc CLI is available
+      ansible.builtin.command: oc version --client
+      changed_when: false
+      delegate_to: localhost
+      run_once: true
+      register: oc_version_output
+    - debug: var=oc_version_output.stdout_lines
 
-    - name: Expose Nginx with Service
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Service
-          metadata:
-            name: nginx-service
-            namespace: default
-          spec:
-            selector:
-              app: nginx
-            ports:
-              - port: 80
-                targetPort: 80
-            type: ClusterIP
+    - name: Create Nginx DeploymentConfig
+      ansible.builtin.command: |
+        oc apply -f - <<EOF_DC
+        apiVersion: apps.openshift.io/v1
+        kind: DeploymentConfig
+        metadata:
+          name: nginx-app
+          namespace: aap # CONFIRMED ROSA PROJECT NAME
+        spec:
+          replicas: 1
+          selector:
+            app: nginx-app
+          template:
+            metadata:
+              labels:
+                app: nginx-app
+            spec:
+              containers:
+                - name: nginx
+                  image: nginx:latest
+                  ports:
+                    - containerPort: 80
+                  imagePullPolicy: IfNotPresent
+          triggers:
+            - type: ConfigChange
+            - type: ImageChange
+              imageChangeParams:
+                automatic: true
+                containerNames:
+                  - nginx
+                from:
+                  kind: ImageStreamTag
+                  name: nginx:latest
+        EOF_DC
+      args:
+        stdin: yes # This tells command module to read from stdin
+      changed_when: true
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}" # Pass kubeconfig from credential
+      register: oc_deploy_output
+    - debug: var=oc_deploy_output.stdout_lines
 
-    - name: Create Route to expose Nginx
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: route.openshift.io/v1
-          kind: Route
-          metadata:
-            name: nginx-route
-            namespace: default
-          spec:
-            to:
-              kind: Service
-              name: nginx-service
-            port:
+    - name: Create Nginx Service
+      ansible.builtin.command: |
+        oc apply -f - <<EOF_SVC
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: nginx-svc
+          namespace: aap # CONFIRMED ROSA PROJECT NAME
+        spec:
+          selector:
+            app: nginx-app
+          ports:
+            - protocol: TCP
+              port: 80
               targetPort: 80
-            tls:
-              termination: edge
+        EOF_SVC
+      args:
+        stdin: yes
+      changed_when: true
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+      register: oc_svc_output
+    - debug: var=oc_svc_output.stdout_lines
+
+    - name: Create Nginx Route
+      ansible.builtin.command: |
+        oc apply -f - <<EOF_ROUTE
+        apiVersion: route.openshift.io/v1
+        kind: Route
+        metadata:
+          name: nginx-route
+          namespace: aap # CONFIRMED ROSA PROJECT NAME
+        spec:
+          to:
+            kind: Service
+            name: nginx-svc
+          port:
+            targetPort: 80-tcp
+          tls:
+            termination: edge
+            insecureEdgeTerminationPolicy: Redirect
+        EOF_ROUTE
+      args:
+        stdin: yes
+      changed_when: true
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+      register: oc_route_output
+    - debug: var=oc_route_output.stdout_lines
+```
+* **Save this file** (`nginx_on_ocp.yml`) on your Mac.
