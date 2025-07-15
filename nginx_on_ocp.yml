@@ -4,13 +4,21 @@
   connection: local
   gather_facts: false
   tasks:
+    - name: Ensure kubernetes Python library is installed in Execution Environment
+      ansible.builtin.pip:
+        name: openshift # This package pulls in kubernetes client and openshift client
+        state: present
+      delegate_to: localhost # Run this task on the execution environment itself
+      run_once: true # Only run once per playbook
+
     - name: Ensure Nginx Deployment, Service, and Route exist
-      kubernetes.core.k8s:
+      # Changed to community.kubernetes.k8s
+      community.kubernetes.k8s:
         kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
         state: present
         definition:
           - apiVersion: apps.openshift.io/v1
-            kind: DeploymentConfig # Using DeploymentConfig for OpenShift
+            kind: DeploymentConfig
             metadata:
               name: nginx-app
               namespace: aap # CONFIRMED ROSA PROJECT NAME
