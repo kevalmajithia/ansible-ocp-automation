@@ -4,9 +4,9 @@
   connection: local
   gather_facts: false
   tasks:
-    - name: Apply Nginx Deployment, Service, and Route
+    - name: Create Nginx DeploymentConfig
       ansible.builtin.command: |
-        oc apply -f - <<EOF_APP
+        oc apply -f - <<EOF_DC
         apiVersion: apps.openshift.io/v1
         kind: DeploymentConfig
         metadata:
@@ -27,17 +27,28 @@
                   ports:
                     - containerPort: 80
                   imagePullPolicy: IfNotPresent
-          triggers:
-            - type: ConfigChange
-            - type: ImageChange
-              imageChangeParams:
-                automatic: true
-                containerNames:
-                  - nginx
-                from:
-                  kind: ImageStreamTag
-                  name: nginx:latest
-        ---
+              triggers:
+                - type: ConfigChange
+                - type: ImageChange
+                  imageChangeParams:
+                    automatic: true
+                    containerNames:
+                      - nginx
+                    from:
+                      kind: ImageStreamTag
+                      name: nginx:latest
+        EOF_DC
+      args:
+        stdin: yes
+      changed_when: true
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+
+    - name: Create Nginx Service
+      ansible.builtin.command: |
+        oc apply -f - <<EOF_SVC
         apiVersion: v1
         kind: Service
         metadata:
@@ -50,7 +61,18 @@
             - protocol: TCP
               port: 80
               targetPort: 80
-        ---
+        EOF_SVC
+      args:
+        stdin: yes
+      changed_when: true
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+
+    - name: Create Nginx Route
+      ansible.builtin.command: |
+        oc apply -f - <<EOF_ROUTE
         apiVersion: route.openshift.io/v1
         kind: Route
         metadata:
@@ -59,17 +81,17 @@
         spec:
           to:
             kind: Service
-            name: nginx-svc
+            name: simple-nginx-svc
           port:
             targetPort: 80-tcp
           tls:
             termination: edge
             insecureEdgeTerminationPolicy: Redirect
-        EOF_APP
+        EOF_ROUTE
       args:
         stdin: yes
       changed_when: true
       delegate_to: localhost
       run_once: true
       environment:
-        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}" # Pass kubeconfig from credential
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
