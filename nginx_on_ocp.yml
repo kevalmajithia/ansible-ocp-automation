@@ -1,67 +1,75 @@
 ---
-- name: Deploy Nginx on OpenShift
+- name: Deploy Simple Nginx App on OpenShift
   hosts: localhost
   connection: local
   gather_facts: false
-
   tasks:
-    - name: Deploy Nginx Deployment
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: nginx
-            namespace: default
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: nginx
-            template:
-              metadata:
-                labels:
-                  app: nginx
-              spec:
-                containers:
-                  - name: nginx
-                    image: nginx:latest
-                    ports:
-                      - containerPort: 80
-
-    - name: Expose Nginx Service
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Service
-          metadata:
-            name: nginx-service
-            namespace: default
-          spec:
-            selector:
-              app: nginx
-            ports:
-              - protocol: TCP
-                port: 80
-                targetPort: 80
-            type: ClusterIP
-
-    - name: Create OpenShift Route
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: route.openshift.io/v1
-          kind: Route
-          metadata:
-            name: nginx-route
-            namespace: default
-          spec:
-            to:
-              kind: Service
-              name: nginx-service
-            port:
+    - name: Apply Nginx Deployment, Service, and Route
+      ansible.builtin.command: |
+        oc apply -f - <<EOF_APP
+        apiVersion: apps.openshift.io/v1
+        kind: DeploymentConfig
+        metadata:
+          name: simple-nginx-app
+          namespace: aap # CONFIRMED ROSA PROJECT NAME
+        spec:
+          replicas: 1
+          selector:
+            app: simple-nginx-app
+          template:
+            metadata:
+              labels:
+                app: simple-nginx-app
+            spec:
+              containers:
+                - name: nginx
+                  image: nginx:latest
+                  ports:
+                    - containerPort: 80
+                  imagePullPolicy: IfNotPresent
+          triggers:
+            - type: ConfigChange
+            - type: ImageChange
+              imageChangeParams:
+                automatic: true
+                containerNames:
+                  - nginx
+                from:
+                  kind: ImageStreamTag
+                  name: nginx:latest
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: simple-nginx-svc
+          namespace: aap # CONFIRMED ROSA PROJECT NAME
+        spec:
+          selector:
+            app: simple-nginx-app
+          ports:
+            - protocol: TCP
+              port: 80
               targetPort: 80
-            tls:
-              termination: edge
+        ---
+        apiVersion: route.openshift.io/v1
+        kind: Route
+        metadata:
+          name: simple-nginx-route
+          namespace: aap # CONFIRMED ROSA PROJECT NAME
+        spec:
+          to:
+            kind: Service
+            name: nginx-svc
+          port:
+            targetPort: 80-tcp
+          tls:
+            termination: edge
+            insecureEdgeTerminationPolicy: Redirect
+        EOF_APP
+      args:
+        stdin: yes
+      changed_when: true
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}" # Pass kubeconfig from credential
