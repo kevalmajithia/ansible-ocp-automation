@@ -50,12 +50,13 @@
       run_once: true
 
     - name: Apply Nginx DeploymentConfig
-      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/deploymentconfig.yaml
+      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/deploymentconfig.yaml --kubeconfig "{{ lookup('env', 'KUBECONFIG') }}"
       changed_when: true
       delegate_to: localhost
       run_once: true
-      environment:
-        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+      # Removed 'environment' block here as --kubeconfig is direct
+      # environment:
+      #   KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
 
     - name: Copy Nginx Service YAML to Execution Environment
       ansible.builtin.copy:
@@ -77,12 +78,12 @@
       run_once: true
 
     - name: Apply Nginx Service
-      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/service.yaml
+      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/service.yaml --kubeconfig "{{ lookup('env', 'KUBECONFIG') }}"
       changed_when: true
       delegate_to: localhost
       run_once: true
-      environment:
-        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+      # environment:
+      #   KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
 
     - name: Copy Nginx Route YAML to Execution Environment
       ansible.builtin.copy:
@@ -106,9 +107,9 @@
       run_once: true
 
     - name: Apply Nginx Route
-      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/route.yaml
+      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/route.yaml --kubeconfig "{{ lookup('env', 'KUBECONFIG') }}"
       changed_when: true
       delegate_to: localhost
       run_once: true
-      environment:
-        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+      # environment:
+      #   KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
