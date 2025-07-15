@@ -12,8 +12,8 @@
       run_once: true # Only run once per playbook
 
     - name: Ensure Nginx Deployment, Service, and Route exist
-      # Changed to community.kubernetes.k8s
-      community.kubernetes.k8s:
+      # REVERTED TO kubernetes.core.k8s
+      kubernetes.core.k8s: # THIS IS THE CHANGE
         kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
         state: present
         definition:
@@ -33,7 +33,7 @@
                 spec:
                   containers:
                     - name: nginx
-                      image: nginx:latest # Standard Nginx image
+                      image: nginx:latest
                       ports:
                         - containerPort: 80
                       imagePullPolicy: IfNotPresent
