@@ -4,9 +4,15 @@
   connection: local
   gather_facts: false
   tasks:
+    - name: Ensure oc CLI is available (pre-check)
+      ansible.builtin.command: oc version --client
+      changed_when: false
+      delegate_to: localhost
+      run_once: true
+
     - name: Create Nginx DeploymentConfig
       ansible.builtin.command: |
-        oc apply -f - <<EOF
+        oc apply -f - <<EOF_DC
         apiVersion: apps.openshift.io/v1
         kind: DeploymentConfig
         metadata:
@@ -37,16 +43,18 @@
                 from:
                   kind: ImageStreamTag
                   name: nginx:latest
-        EOF
+        EOF_DC
       args:
-        stdin: "{{ lookup('file', '/dev/stdin') }}" # Required for multiline input
-      changed_when: true # Assume change
-      register: oc_deploy_output
-    - debug: var=oc_deploy_output.stdout_lines
+        stdin: yes # This tells command module to read from stdin
+      changed_when: true
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}" # Pass kubeconfig from credential
 
     - name: Create Nginx Service
       ansible.builtin.command: |
-        oc apply -f - <<EOF
+        oc apply -f - <<EOF_SVC
         apiVersion: v1
         kind: Service
         metadata:
@@ -59,16 +67,18 @@
             - protocol: TCP
               port: 80
               targetPort: 80
-        EOF
+        EOF_SVC
       args:
-        stdin: "{{ lookup('file', '/dev/stdin') }}"
+        stdin: yes
       changed_when: true
-      register: oc_svc_output
-    - debug: var=oc_svc_output.stdout_lines
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
 
     - name: Create Nginx Route
       ansible.builtin.command: |
-        oc apply -f - <<EOF
+        oc apply -f - <<EOF_ROUTE
         apiVersion: route.openshift.io/v1
         kind: Route
         metadata:
@@ -83,9 +93,11 @@
           tls:
             termination: edge
             insecureEdgeTerminationPolicy: Redirect
-        EOF
+        EOF_ROUTE
       args:
-        stdin: "{{ lookup('file', '/dev/stdin') }}"
+        stdin: yes
       changed_when: true
-      register: oc_route_output
-    - debug: var=oc_route_output.stdout_lines
+      delegate_to: localhost
+      run_once: true
+      environment:
+        KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
