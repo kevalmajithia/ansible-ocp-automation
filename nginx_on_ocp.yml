@@ -1,0 +1,67 @@
+---
+- name: Deploy Nginx application on OpenShift
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Ensure Nginx Deployment, Service, and Route exist
+      kubernetes.core.k8s:
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+        state: present
+        definition:
+          - apiVersion: apps.openshift.io/v1
+            kind: DeploymentConfig # Using DeploymentConfig for OpenShift
+            metadata:
+              name: nginx-app
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              replicas: 1
+              selector:
+                app: nginx-app
+              template:
+                metadata:
+                  labels:
+                    app: nginx-app
+                spec:
+                  containers:
+                    - name: nginx
+                      image: nginx:latest # Standard Nginx image
+                      ports:
+                        - containerPort: 80
+                      imagePullPolicy: IfNotPresent
+              triggers:
+                - type: ConfigChange
+                - type: ImageChange
+                  imageChangeParams:
+                    automatic: true
+                    containerNames:
+                      - nginx
+                    from:
+                      kind: ImageStreamTag
+                      name: nginx:latest
+          - apiVersion: v1
+            kind: Service
+            metadata:
+              name: nginx-svc
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              selector:
+                app: nginx-app
+              ports:
+                - protocol: TCP
+                  port: 80
+                  targetPort: 80
+          - apiVersion: route.openshift.io/v1
+            kind: Route
+            metadata:
+              name: nginx-route
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              to:
+                kind: Service
+                name: nginx-svc
+              port:
+                targetPort: 80-tcp
+              tls:
+                termination: edge
+                insecureEdgeTerminationPolicy: Redirect
