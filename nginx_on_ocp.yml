@@ -1,4 +1,68 @@
 ---
+- name: Deploy Node.js Hello World App on OCP via GUI
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    app_name: nodejs-hello
+    namespace: aap
+    git_repo: "https://github.com/sclorg/nodejs-ex"
+
+  tasks:
+
+    - name: Create app from Git using oc new-app
+      ansible.builtin.shell: >
+        oc new-app {{ git_repo }} --name={{ app_name }} -n {{ namespace }} --kubeconfig={{ lookup('env', 'KUBECONFIG') }}
+
+    - name: Expose Service to create Route
+      ansible.builtin.shell: >
+        oc expose svc/{{ app_name }} -n {{ namespace }} --kubeconfig={{ lookup('env', 'KUBECONFIG') }}
+
+    - name: Configure Readiness Probe
+      kubernetes.core.k8s:
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+        state: patched
+        kind: Deployment
+        api_version: apps/v1
+        namespace: "{{ namespace }}"
+        name: "{{ app_name }}"
+        merge_type: strategic
+        definition:
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: "{{ app_name }}"
+                    readinessProbe:
+                      httpGet:
+                        path: /
+                        port: 8080
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
+
+    - name: Configure Liveness Probe
+      kubernetes.core.k8s:
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+        state: patched
+        kind: Deployment
+        api_version: apps/v1
+        namespace: "{{ namespace }}"
+        name: "{{ app_name }}"
+        merge_type: strategic
+        definition:
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: "{{ app_name }}"
+                    livenessProbe:
+                      httpGet:
+                        path: /
+                        port: 8080
+                      initialDelaySeconds: 15
+                      periodSeconds: 5
+---
 - name: Deploy Simple Nginx App on OpenShift (K8s-native)
   hosts: localhost
   connection: local
