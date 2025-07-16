@@ -1,68 +1,85 @@
----
 - name: Deploy Simple Nginx App on OpenShift (Force API Version)
   hosts: localhost
   connection: local
   gather_facts: false
+
   tasks:
-    - name: Apply Nginx Deployment, Service, and Route
+    - name: Create Nginx DeploymentConfig
       kubernetes.core.k8s:
-        api_version: apps.openshift.io/v1 # Explicitly set API version here
+        api_version: apps.openshift.io/v1
+        kind: DeploymentConfig
         kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
         state: present
         definition:
-          - apiVersion: apps.openshift.io/v1
-            kind: DeploymentConfig
-            metadata:
-              name: simple-nginx-app
-              namespace: aap # CONFIRMED ROSA PROJECT NAME
-            spec:
-              replicas: 1
-              selector:
-                app: simple-nginx-app
-              template:
-                metadata:
-                  labels:
-                    app: simple-nginx-app
-                spec:
-                  containers:
-                    - name: nginx
-                      image: nginx:latest
-                      ports:
-                        - containerPort: 80
-                      imagePullPolicy: IfNotPresent
-              triggers:
-                - type: ConfigChange
-                - type: ImageChange
-                  imageChangeParams:
-                    automatic: true
-                    containerNames:
-                      - nginx
-                    from:
-                      kind: ImageStreamTag
-                      name: nginx:latest
-          - apiVersion: v1
-            kind: Service
-            metadata:
+          apiVersion: apps.openshift.io/v1
+          kind: DeploymentConfig
+          metadata:
+            name: simple-nginx-app
+            namespace: aap
+          spec:
+            replicas: 1
+            selector:
+              app: simple-nginx-app
+            template:
+              metadata:
+                labels:
+                  app: simple-nginx-app
+              spec:
+                containers:
+                  - name: nginx
+                    image: nginx:latest
+                    ports:
+                      - containerPort: 80
+                    imagePullPolicy: IfNotPresent
+            triggers:
+              - type: ConfigChange
+              - type: ImageChange
+                imageChangeParams:
+                  automatic: true
+                  containerNames:
+                    - nginx
+                  from:
+                    kind: ImageStreamTag
+                    name: nginx:latest
+
+    - name: Create Service
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Service
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: simple-nginx-svc
+            namespace: aap
+          spec:
+            selector:
+              app: simple-nginx-app
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 80
+
+    - name: Create Route
+      kubernetes.core.k8s:
+        api_version: route.openshift.io/v1
+        kind: Route
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+        state: present
+        definition:
+          apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            name: simple-nginx-route
+            namespace: aap
+          spec:
+            to:
+              kind: Service
               name: simple-nginx-svc
-              namespace: aap # CONFIRMED ROSA PROJECT NAME
-            spec:
-              selector:
-                app: simple-nginx-app
-              ports:
-                - protocol: TCP
-                  port: 80
-                  targetPort: 80
-          - apiVersion: route.openshift.io/v1
-            kind: Route
-            metadata:
-              name: simple-nginx-route
-              namespace: aap # CONFIRMED ROSA PROJECT NAME
-            spec:
-              to:
-                kind: Service
-                name: simple-nginx-svc
-              port:
-                targetPort: 80-tcp
-              tls:
-                termination: edge
-                insecureEdgeTerminationPolicy: Redirect
+            port:
+              targetPort: 80
+            tls:
+              termination: edge
+              insecureEdgeTerminationPolicy: Redirect
