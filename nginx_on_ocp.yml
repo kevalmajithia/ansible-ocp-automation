@@ -1,10 +1,12 @@
-- name: Deploy Simple Nginx App on OpenShift
+---
+- name: Deploy Simple Nginx App on OpenShift (Force API Version)
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
     - name: Apply Nginx Deployment, Service, and Route
       kubernetes.core.k8s:
+        api_version: apps.openshift.io/v1 # Explicitly set API version here
         kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
         state: present
         definition:
@@ -28,16 +30,16 @@
                       ports:
                         - containerPort: 80
                       imagePullPolicy: IfNotPresent
-                  triggers:
-                    - type: ConfigChange
-                    - type: ImageChange
-                      imageChangeParams:
-                        automatic: true
-                        containerNames:
-                          - nginx
-                        from:
-                          kind: ImageStreamTag
-                          name: nginx:latest
+              triggers:
+                - type: ConfigChange
+                - type: ImageChange
+                  imageChangeParams:
+                    automatic: true
+                    containerNames:
+                      - nginx
+                    from:
+                      kind: ImageStreamTag
+                      name: nginx:latest
           - apiVersion: v1
             kind: Service
             metadata:
