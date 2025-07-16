@@ -1,115 +1,69 @@
+```yaml
 ---
-- name: Deploy Simple Nginx App on OpenShift (Copy File then Apply)
+- name: Deploy Simple Nginx App on OpenShift
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
-    - name: Create temporary directory for OCP YAML files
-      ansible.builtin.file:
-        path: /tmp/ocp_nginx_deploy
-        state: directory
-        mode: '0755'
-      delegate_to: localhost
-      run_once: true
-
-    - name: Copy Nginx DeploymentConfig YAML to Execution Environment
-      ansible.builtin.copy:
-        content: |
-          apiVersion: apps.openshift.io/v1
-          kind: DeploymentConfig
-          metadata:
-            name: simple-nginx-app
-            namespace: aap # CONFIRMED ROSA PROJECT NAME
-          spec:
-            replicas: 1
-            selector:
-              app: simple-nginx-app
-            template:
-              metadata:
-                labels:
-                  app: simple-nginx-app
-              spec:
-                containers:
-                  - name: nginx
-                    image: nginx:latest
-                    ports:
-                      - containerPort: 80
-                    imagePullPolicy: IfNotPresent
-            triggers:
-              - type: ConfigChange
-              - type: ImageChange
-                imageChangeParams:
-                  automatic: true
-                  containerNames:
-                    - nginx
-                  from:
-                    kind: ImageStreamTag
-                    name: nginx:latest
-        dest: /tmp/ocp_nginx_deploy/deploymentconfig.yaml
-      delegate_to: localhost
-      run_once: true
-
-    - name: Apply Nginx DeploymentConfig
-      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/deploymentconfig.yaml --kubeconfig "{{ lookup('env', 'KUBECONFIG') }}"
-      changed_when: true
-      delegate_to: localhost
-      run_once: true
-      # Removed 'environment' block here as --kubeconfig is direct
-      # environment:
-      #   KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
-
-    - name: Copy Nginx Service YAML to Execution Environment
-      ansible.builtin.copy:
-        content: |
-          apiVersion: v1
-          kind: Service
-          metadata:
-            name: simple-nginx-svc
-            namespace: aap # CONFIRMED ROSA PROJECT NAME
-          spec:
-            selector:
-              app: simple-nginx-app
-            ports:
-              - protocol: TCP
-                port: 80
-                targetPort: 80
-        dest: /tmp/ocp_nginx_deploy/service.yaml
-      delegate_to: localhost
-      run_once: true
-
-    - name: Apply Nginx Service
-      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/service.yaml --kubeconfig "{{ lookup('env', 'KUBECONFIG') }}"
-      changed_when: true
-      delegate_to: localhost
-      run_once: true
-      # environment:
-      #   KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
-
-    - name: Copy Nginx Route YAML to Execution Environment
-      ansible.builtin.copy:
-        content: |
-          apiVersion: route.openshift.io/v1
-          kind: Route
-          metadata:
-            name: simple-nginx-route
-            namespace: aap # CONFIRMED ROSA PROJECT NAME
-          spec:
-            to:
-              kind: Service
+    - name: Apply Nginx Deployment, Service, and Route
+      kubernetes.core.k8s:
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+        state: present
+        definition:
+          - apiVersion: apps.openshift.io/v1
+            kind: DeploymentConfig
+            metadata:
+              name: simple-nginx-app
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              replicas: 1
+              selector:
+                app: simple-nginx-app
+              template:
+                metadata:
+                  labels:
+                    app: simple-nginx-app
+                spec:
+                  containers:
+                    - name: nginx
+                      image: nginx:latest
+                      ports:
+                        - containerPort: 80
+                      imagePullPolicy: IfNotPresent
+                  triggers:
+                    - type: ConfigChange
+                    - type: ImageChange
+                      imageChangeParams:
+                        automatic: true
+                        containerNames:
+                          - nginx
+                        from:
+                          kind: ImageStreamTag
+                          name: nginx:latest
+          - apiVersion: v1
+            kind: Service
+            metadata:
               name: simple-nginx-svc
-            port:
-              targetPort: 80-tcp
-            tls:
-              termination: edge
-              insecureEdgeTerminationPolicy: Redirect
-        dest: /tmp/ocp_nginx_deploy/route.yaml
-      delegate_to: localhost
-      run_once: true
-
-    - name: Apply Nginx Route
-      ansible.builtin.command: oc apply -f /tmp/ocp_nginx_deploy/route.yaml --kubeconfig "{{ lookup('env', 'KUBECONFIG') }}"
-      changed_when: true
-      delegate_to: localhost
-      run_once: true
-      # environment:
-      #   KUBECONFIG: "{{ lookup('env', 'KUBECONFIG') }}"
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              selector:
+                app: simple-nginx-app
+              ports:
+                - protocol: TCP
+                  port: 80
+                  targetPort: 80
+          - apiVersion: route.openshift.io/v1
+            kind: Route
+            metadata:
+              name: simple-nginx-route
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              to:
+                kind: Service
+                name: simple-nginx-svc
+              port:
+                targetPort: 80-tcp
+              tls:
+                termination: edge
+                insecureEdgeTerminationPolicy: Redirect
+```
