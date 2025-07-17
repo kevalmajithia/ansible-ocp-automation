@@ -24,23 +24,15 @@
                 spec:
                   containers:
                     - name: nginx
-                      image: nginxinc/nginx-unprivileged:latest # CHANGED IMAGE to run on non-privileged port
+                      image: nginxinc/nginx-unprivileged:latest # Image runs on non-privileged port
                       ports:
-                        - containerPort: 8080 # CHANGED PORT from 80 to 8080
+                        - containerPort: 8080 # Port changed to 8080
                       imagePullPolicy: IfNotPresent
-                      securityContext: # ADDED Security Context
-                        runAsNonRoot: true # ADDED runAsNonRoot
-                        # runAsUser: 1000 # REMOVED (or ensure it's not present)
-              triggers:
-                - type: ConfigChange
-                - type: ImageChange
-                  imageChangeParams:
-                    automatic: true
-                    containerNames:
-                      - nginx
-                    from:
-                      kind: ImageStreamTag
-                      name: nginxinc/nginx-unprivileged:latest # CHANGED IMAGE to match container
+                      securityContext: # Security Context for non-root
+                        runAsNonRoot: true
+              triggers: # MODIFIED: Only ConfigChange trigger remains
+                - type: ConfigChange # Keep this trigger
+                # REMOVED: - type: ImageChange block that caused the error
           - apiVersion: v1
             kind: Service
             metadata:
@@ -51,8 +43,8 @@
                 app: simple-nginx-app
               ports:
                 - protocol: TCP
-                  port: 8080 # CHANGED SERVICE PORT to 8080
-                  targetPort: 8080 # CHANGED TARGET PORT to 8080
+                  port: 8080 # Service port changed to 8080
+                  targetPort: 8080 # Target port changed to 8080
           - apiVersion: route.openshift.io/v1
             kind: Route
             metadata:
@@ -63,7 +55,7 @@
                 kind: Service
                 name: simple-nginx-svc
               port:
-                targetPort: 8080-tcp # CHANGED ROUTE TARGET PORT to 8080-tcp
+                targetPort: 8080-tcp # Route target port changed to 8080-tcp
               tls:
                 termination: edge
                 insecureEdgeTerminationPolicy: Redirect
