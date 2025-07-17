@@ -1,71 +1,69 @@
-- name: Deploy Final Apache HTTPD App on OpenShift
+- name: Deploy Simple Nginx App on OpenShift (SCC & Port Compliant)
   hosts: localhost
   connection: local
   gather_facts: false
-  collections:
-    - kubernetes.core
-
   tasks:
-
-    - name: Create Apache HTTPD Deployment
+    - name: Apply Nginx Deployment, Service, and Route
       kubernetes.core.k8s:
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
         state: present
         definition:
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: final-apache-app # NEW DEPLOYMENT NAME
-            namespace: aap # CONFIRMED ROSA PROJECT NAME
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: final-apache-app
-            template:
-              metadata:
-                labels:
-                  app: final-apache-app
-              spec:
-                containers:
-                  - name: apache
-                    image: httpd:latest # Using Apache HTTPD image
-                    ports:
-                      - containerPort: 80
-                    imagePullPolicy: Always # Ensure fresh pull
-                securityContext:
-                  runAsUser: 1000
-                  fsGroup: 1000
-                  allowPrivilegeEscalation: false
-
-    - name: Expose Apache HTTPD via a Service
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Service
-          metadata:
-            name: final-apache-svc # NEW SERVICE NAME
-            namespace: aap # CONFIRMED ROSA PROJECT NAME
-          spec:
-            selector:
-              app: final-apache-app # Matches new app label
-            ports:
-              - protocol: TCP
-                port: 80
-                targetPort: 80
-
-    - name: Create Route to expose Apache HTTPD
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: route.openshift.io/v1
-          kind: Route
-          metadata:
-            name: final-apache-route # NEW ROUTE NAME
-            namespace: aap # CONFIRMED ROSA PROJECT NAME
-          spec:
-            to:
-              kind: Service
-              name: final-apache-svc # Matches new service name
-            port:
-              targetPort: 80
+          - apiVersion: apps.openshift.io/v1
+            kind: DeploymentConfig
+            metadata:
+              name: simple-nginx-app
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              replicas: 1
+              selector:
+                app: simple-nginx-app
+              template:
+                metadata:
+                  labels:
+                    app: simple-nginx-app
+                spec:
+                  containers:
+                    - name: nginx
+                      image: nginxinc/nginx-unprivileged:latest # CHANGED IMAGE to run on non-privileged port
+                      ports:
+                        - containerPort: 8080 # CHANGED PORT from 80 to 8080
+                      imagePullPolicy: IfNotPresent
+                      securityContext: # ADDED Security Context
+                        runAsNonRoot: true # ADDED runAsNonRoot
+                        # runAsUser: 1000 # REMOVED (or ensure it's not present)
+              triggers:
+                - type: ConfigChange
+                - type: ImageChange
+                  imageChangeParams:
+                    automatic: true
+                    containerNames:
+                      - nginx
+                    from:
+                      kind: ImageStreamTag
+                      name: nginxinc/nginx-unprivileged:latest # CHANGED IMAGE to match container
+          - apiVersion: v1
+            kind: Service
+            metadata:
+              name: simple-nginx-svc
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              selector:
+                app: simple-nginx-app
+              ports:
+                - protocol: TCP
+                  port: 8080 # CHANGED SERVICE PORT to 8080
+                  targetPort: 8080 # CHANGED TARGET PORT to 8080
+          - apiVersion: route.openshift.io/v1
+            kind: Route
+            metadata:
+              name: simple-nginx-route
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              to:
+                kind: Service
+                name: simple-nginx-svc
+              port:
+                targetPort: 8080-tcp # CHANGED ROUTE TARGET PORT to 8080-tcp
+              tls:
+                termination: edge
+                insecureEdgeTerminationPolicy: Redirect
