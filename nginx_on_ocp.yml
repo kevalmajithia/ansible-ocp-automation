@@ -1,29 +1,13 @@
-- name: Deploy NGINX Hello World App on OpenShift
+- name: Deploy Plain Nginx App on OpenShift (No Custom HTML)
   hosts: localhost
   connection: local
-  gather_facts: no
+  gather_facts: false
   collections:
     - kubernetes.core
 
   tasks:
 
-    - name: Create a ConfigMap with index.html
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: nginx-html
-            namespace: default # CONFIRMED ROSA PROJECT NAME
-          data:
-            index.html: |
-              <html>
-              <head><title>Hello</title></head>
-              <body>
-                <h1>Hello from Ansible AAP on OpenShift!</h1>
-              </body>
-              </html>
+    # Removed the 'Create a ConfigMap with index.html' task
 
     - name: Create NGINX Deployment
       kubernetes.core.k8s:
@@ -32,17 +16,17 @@
           apiVersion: apps/v1
           kind: Deployment
           metadata:
-            name: nginx-deployment
+            name: plain-nginx-deployment # New name for deployment
             namespace: default # CONFIRMED ROSA PROJECT NAME
           spec:
             replicas: 1
             selector:
               matchLabels:
-                app: nginx
+                app: plain-nginx
             template:
               metadata:
                 labels:
-                  app: nginx
+                  app: plain-nginx # New app label
               spec:
                 securityContext:
                   runAsUser: 1000
@@ -50,20 +34,11 @@
                   allowPrivilegeEscalation: false
                 containers:
                   - name: nginx
-                    # --- START OF MODIFIED SECTION ---
-                    image: registry.access.redhat.com/rhscl/nginx-118-rhel7 # CHANGE NGINX IMAGE HERE
-                    # --- END OF MODIFIED SECTION ---
+                    image: nginx:latest # Reverting to standard nginx:latest for simplicity
                     ports:
                       - containerPort: 80
-                    volumeMounts:
-                      - name: html
-                        mountPath: /usr/share/nginx/html
-                volumes:
-                  - name: html
-                    configMap:
-                      name: nginx-html
-                  - name: nginx-cache-volume
-                    emptyDir: {}
+                    # Removed volumeMounts for html and cache
+                # Removed 'volumes' section entirely
 
     - name: Expose NGINX via a Service
       kubernetes.core.k8s:
@@ -72,11 +47,11 @@
           apiVersion: v1
           kind: Service
           metadata:
-            name: nginx-service
+            name: plain-nginx-service # New name for service
             namespace: default # CONFIRMED ROSA PROJECT NAME
           spec:
             selector:
-              app: nginx
+              app: plain-nginx # Matches new app label
             ports:
               - protocol: TCP
                 port: 80
@@ -89,11 +64,11 @@
           apiVersion: route.openshift.io/v1
           kind: Route
           metadata:
-            name: nginx-route
+            name: plain-nginx-route # New name for route
             namespace: default # CONFIRMED ROSA PROJECT NAME
           spec:
             to:
               kind: Service
-              name: nginx-service
+              name: plain-nginx-service # Matches new service name
             port:
               targetPort: 80
