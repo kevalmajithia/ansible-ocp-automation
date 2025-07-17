@@ -1,4 +1,4 @@
-- name: Deploy Plain Nginx App on OpenShift (No Custom HTML)
+- name: Deploy Plain Nginx App on OpenShift (Volume Cache)
   hosts: localhost
   connection: local
   gather_facts: false
@@ -6,8 +6,6 @@
     - kubernetes.core
 
   tasks:
-
-    # Removed the 'Create a ConfigMap with index.html' task
 
     - name: Create NGINX Deployment
       kubernetes.core.k8s:
@@ -26,7 +24,7 @@
             template:
               metadata:
                 labels:
-                  app: plain-nginx # New app label
+                  app: plain-nginx
               spec:
                 securityContext:
                   runAsUser: 1000
@@ -34,11 +32,17 @@
                   allowPrivilegeEscalation: false
                 containers:
                   - name: nginx
-                    image: nginx:latest # Reverting to standard nginx:latest for simplicity
+                    image: nginx:latest
                     ports:
                       - containerPort: 80
-                    # Removed volumeMounts for html and cache
-                # Removed 'volumes' section entirely
+                    # --- START OF MODIFIED SECTION ---
+                    volumeMounts: # Add volume mount for cache
+                      - name: nginx-cache-volume
+                        mountPath: /var/cache/nginx
+                volumes: # Define the emptyDir volume for cache
+                  - name: nginx-cache-volume
+                    emptyDir: {}
+                # --- END OF MODIFIED SECTION ---
 
     - name: Expose NGINX via a Service
       kubernetes.core.k8s:
@@ -51,7 +55,7 @@
             namespace: default # CONFIRMED ROSA PROJECT NAME
           spec:
             selector:
-              app: plain-nginx # Matches new app label
+              app: plain-nginx
             ports:
               - protocol: TCP
                 port: 80
@@ -69,6 +73,6 @@
           spec:
             to:
               kind: Service
-              name: plain-nginx-service # Matches new service name
+              name: plain-nginx-service
             port:
               targetPort: 80
