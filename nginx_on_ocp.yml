@@ -1,6 +1,6 @@
 - name: Deploy NGINX Hello World App on OpenShift
   hosts: localhost
-  connection: local  
+  connection: local
   gather_facts: no
   collections:
     - kubernetes.core
@@ -15,7 +15,7 @@
           kind: ConfigMap
           metadata:
             name: nginx-html
-            namespace: default
+            namespace: aap # CHANGE THIS FROM 'default' to 'aap'
           data:
             index.html: |
               <html>
@@ -33,7 +33,7 @@
           kind: Deployment
           metadata:
             name: nginx-deployment
-            namespace: default
+            namespace: aap # CHANGE THIS FROM 'default' to 'aap'
           spec:
             replicas: 1
             selector:
@@ -65,7 +65,7 @@
           kind: Service
           metadata:
             name: nginx-service
-            namespace: default
+            namespace: aap # CHANGE THIS FROM 'default' to 'aap'
           spec:
             selector:
               app: nginx
@@ -82,7 +82,7 @@
           kind: Route
           metadata:
             name: nginx-route
-            namespace: default
+            namespace: aap # CHANGE THIS FROM 'default' to 'aap'
           spec:
             to:
               kind: Service
