@@ -21,7 +21,7 @@
               <html>
               <head><title>Hello</title></head>
               <body>
-                <h1>Hello from Ansible AAP on OpenShift!</h1>
+                <h1>Hello from Ansible default on OpenShift!</h1>
               </body>
               </html>
 
@@ -44,17 +44,12 @@
                 labels:
                   app: nginx
               spec:
-                # --- START OF ADDED/MODIFIED SECTION ---
+                # --- START OF MODIFIED SECTION ---
+                # Removed initContainers block entirely
                 securityContext: # Added security context for permissions
                   runAsUser: 1000 # Common non-root user ID
                   fsGroup: 1000   # Common group ID for volume permissions
-                initContainers: # Added init container to fix permissions on cache dir
-                  - name: fix-nginx-permissions
-                    image: busybox # Small, simple image
-                    command: ["sh", "-c", "chmod -R 777 /var/cache/nginx"] # Grant write permissions
-                    volumeMounts:
-                      - name: nginx-cache-volume
-                        mountPath: /var/cache/nginx
+                  allowPrivilegeEscalation: false # Good practice
                 containers:
                   - name: nginx
                     image: nginx:latest
@@ -65,13 +60,17 @@
                         mountPath: /usr/share/nginx/html
                       - name: nginx-cache-volume # Mount the cache volume
                         mountPath: /var/cache/nginx
+                    # Add securityContext directly to the container if needed, but usually pod-level is enough
+                    # securityContext:
+                    #   runAsNonRoot: true
+                    #   readOnlyRootFilesystem: true # Nginx needs to write to cache, so this might conflict
                 volumes:
                   - name: html
                     configMap:
                       name: nginx-html
                   - name: nginx-cache-volume # Define the emptyDir volume for cache
                     emptyDir: {}
-                # --- END OF ADDED/MODIFIED SECTION ---
+                # --- END OF MODIFIED SECTION ---
 
     - name: Expose NGINX via a Service
       kubernetes.core.k8s:
