@@ -46,7 +46,9 @@
               spec:
                 containers:
                   - name: nginx
-                    image: nginx:latest
+                    # --- START OF MODIFIED SECTION ---
+                    image: registry.redhat.io/rhel8/nginx-120:latest # Use Red Hat's Nginx image
+                    # --- END OF MODIFIED SECTION ---
                     ports:
                       - containerPort: 80
                     volumeMounts:
