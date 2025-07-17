@@ -15,7 +15,7 @@
           kind: ConfigMap
           metadata:
             name: nginx-html
-            namespace: default # CONFIRMED ROSA PROJECT NAME
+            namespace: aap # CONFIRMED ROSA PROJECT NAME
           data:
             index.html: |
               <html>
@@ -33,7 +33,7 @@
           kind: Deployment
           metadata:
             name: nginx-deployment
-            namespace: default # CONFIRMED ROSA PROJECT NAME
+            namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             replicas: 1
             selector:
@@ -44,20 +44,26 @@
                 labels:
                   app: nginx
               spec:
+                securityContext: # Added security context for permissions
+                  runAsUser: 1000 # Common non-root user ID for OpenShift
+                  fsGroup: 1000   # Common group ID for volume permissions
+                  allowPrivilegeEscalation: false # Good practice
                 containers:
                   - name: nginx
-                    # --- START OF MODIFIED SECTION ---
-                    image: registry.redhat.io/rhel8/nginx-120:latest # Use Red Hat's Nginx image
-                    # --- END OF MODIFIED SECTION ---
+                    image: nginx:latest # Standard Nginx image
                     ports:
                       - containerPort: 80
                     volumeMounts:
                       - name: html
                         mountPath: /usr/share/nginx/html
+                      - name: nginx-cache-volume # Mount a writable volume for cache
+                        mountPath: /var/cache/nginx
                 volumes:
                   - name: html
                     configMap:
                       name: nginx-html
+                  - name: nginx-cache-volume # Define the emptyDir volume for cache
+                    emptyDir: {}
 
     - name: Expose NGINX via a Service
       kubernetes.core.k8s:
@@ -67,7 +73,7 @@
           kind: Service
           metadata:
             name: nginx-service
-            namespace: default # CONFIRMED ROSA PROJECT NAME
+            namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             selector:
               app: nginx
@@ -84,7 +90,7 @@
           kind: Route
           metadata:
             name: nginx-route
-            namespace: default # CONFIRMED ROSA PROJECT NAME
+            namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             to:
               kind: Service
