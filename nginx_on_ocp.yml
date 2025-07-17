@@ -15,7 +15,7 @@
           kind: ConfigMap
           metadata:
             name: nginx-html
-            namespace: aap # CHANGE THIS FROM 'default' to 'aap'
+            namespace: default # CONFIRMED ROSA PROJECT NAME
           data:
             index.html: |
               <html>
@@ -33,7 +33,7 @@
           kind: Deployment
           metadata:
             name: nginx-deployment
-            namespace: aap # CHANGE THIS FROM 'default' to 'aap'
+            namespace: default # CONFIRMED ROSA PROJECT NAME
           spec:
             replicas: 1
             selector:
@@ -44,6 +44,17 @@
                 labels:
                   app: nginx
               spec:
+                # --- START OF ADDED/MODIFIED SECTION ---
+                securityContext: # Added security context for permissions
+                  runAsUser: 1000 # Common non-root user ID
+                  fsGroup: 1000   # Common group ID for volume permissions
+                initContainers: # Added init container to fix permissions on cache dir
+                  - name: fix-nginx-permissions
+                    image: busybox # Small, simple image
+                    command: ["sh", "-c", "chmod -R 777 /var/cache/nginx"] # Grant write permissions
+                    volumeMounts:
+                      - name: nginx-cache-volume
+                        mountPath: /var/cache/nginx
                 containers:
                   - name: nginx
                     image: nginx:latest
@@ -52,10 +63,15 @@
                     volumeMounts:
                       - name: html
                         mountPath: /usr/share/nginx/html
+                      - name: nginx-cache-volume # Mount the cache volume
+                        mountPath: /var/cache/nginx
                 volumes:
                   - name: html
                     configMap:
                       name: nginx-html
+                  - name: nginx-cache-volume # Define the emptyDir volume for cache
+                    emptyDir: {}
+                # --- END OF ADDED/MODIFIED SECTION ---
 
     - name: Expose NGINX via a Service
       kubernetes.core.k8s:
@@ -65,7 +81,7 @@
           kind: Service
           metadata:
             name: nginx-service
-            namespace: aap # CHANGE THIS FROM 'default' to 'aap'
+            namespace: default # CONFIRMED ROSA PROJECT NAME
           spec:
             selector:
               app: nginx
@@ -82,7 +98,7 @@
           kind: Route
           metadata:
             name: nginx-route
-            namespace: aap # CHANGE THIS FROM 'default' to 'aap'
+            namespace: default # CONFIRMED ROSA PROJECT NAME
           spec:
             to:
               kind: Service
