@@ -1,99 +1,71 @@
-- name: Deploy NGINX Hello World App on OpenShift
+- name: Deploy Simple Apache HTTPD App on OpenShift
   hosts: localhost
   connection: local
-  gather_facts: no
+  gather_facts: false
   collections:
     - kubernetes.core
 
   tasks:
 
-    - name: Create a ConfigMap with index.html
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: nginx-html
-            namespace: aap # CONFIRMED ROSA PROJECT NAME
-          data:
-            index.html: |
-              <html>
-              <head><title>Hello</title></head>
-              <body>
-                <h1>Hello from Ansible AAP on OpenShift!</h1>
-              </body>
-              </html>
-
-    - name: Create NGINX Deployment
+    - name: Create Apache HTTPD Deployment
       kubernetes.core.k8s:
         state: present
         definition:
           apiVersion: apps/v1
           kind: Deployment
           metadata:
-            name: nginx-deployment
+            name: simple-apache-app # New name for deployment
             namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             replicas: 1
             selector:
               matchLabels:
-                app: nginx
+                app: simple-apache-app
             template:
               metadata:
                 labels:
-                  app: nginx
+                  app: simple-apache-app
               spec:
-                securityContext: # Added security context for permissions
-                  runAsUser: 1000 # Common non-root user ID for OpenShift
-                  fsGroup: 1000   # Common group ID for volume permissions
-                  allowPrivilegeEscalation: false # Good practice
                 containers:
-                  - name: nginx
-                    image: nginx:latest # Standard Nginx image
+                  - name: apache
+                    image: httpd:latest # Using Apache HTTPD image
                     ports:
-                      - containerPort: 80
-                    volumeMounts:
-                      - name: html
-                        mountPath: /usr/share/nginx/html
-                      - name: nginx-cache-volume # Mount a writable volume for cache
-                        mountPath: /var/cache/nginx
-                volumes:
-                  - name: html
-                    configMap:
-                      name: nginx-html
-                  - name: nginx-cache-volume # Define the emptyDir volume for cache
-                    emptyDir: {}
+                      - containerPort: 80 # Default Apache port
+                    imagePullPolicy: IfNotPresent
+                securityContext: # Keep security context for general compatibility
+                  runAsUser: 1000
+                  fsGroup: 1000
+                  allowPrivilegeEscalation: false
 
-    - name: Expose NGINX via a Service
+    - name: Expose Apache HTTPD via a Service
       kubernetes.core.k8s:
         state: present
         definition:
           apiVersion: v1
           kind: Service
           metadata:
-            name: nginx-service
+            name: simple-apache-svc # New name for service
             namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             selector:
-              app: nginx
+              app: simple-apache-app # Matches new app label
             ports:
               - protocol: TCP
                 port: 80
                 targetPort: 80
 
-    - name: Create Route to expose NGINX (OpenShift specific)
+    - name: Create Route to expose Apache HTTPD
       kubernetes.core.k8s:
         state: present
         definition:
           apiVersion: route.openshift.io/v1
           kind: Route
           metadata:
-            name: nginx-route
+            name: simple-apache-route # New name for route
             namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             to:
               kind: Service
-              name: nginx-service
+              name: simple-apache-svc # Matches new service name
             port:
               targetPort: 80
