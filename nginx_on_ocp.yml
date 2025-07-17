@@ -1,4 +1,4 @@
-- name: Deploy Simple Apache HTTPD App on OpenShift
+- name: Deploy Final Apache HTTPD App on OpenShift
   hosts: localhost
   connection: local
   gather_facts: false
@@ -14,25 +14,25 @@
           apiVersion: apps/v1
           kind: Deployment
           metadata:
-            name: simple-apache-app # New name for deployment
+            name: final-apache-app # NEW DEPLOYMENT NAME
             namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             replicas: 1
             selector:
               matchLabels:
-                app: simple-apache-app
+                app: final-apache-app
             template:
               metadata:
                 labels:
-                  app: simple-apache-app
+                  app: final-apache-app
               spec:
                 containers:
                   - name: apache
                     image: httpd:latest # Using Apache HTTPD image
                     ports:
-                      - containerPort: 80 # Default Apache port
-                    imagePullPolicy: IfNotPresent
-                securityContext: # Keep security context for general compatibility
+                      - containerPort: 80
+                    imagePullPolicy: Always # Ensure fresh pull
+                securityContext:
                   runAsUser: 1000
                   fsGroup: 1000
                   allowPrivilegeEscalation: false
@@ -44,11 +44,11 @@
           apiVersion: v1
           kind: Service
           metadata:
-            name: simple-apache-svc # New name for service
+            name: final-apache-svc # NEW SERVICE NAME
             namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             selector:
-              app: simple-apache-app # Matches new app label
+              app: final-apache-app # Matches new app label
             ports:
               - protocol: TCP
                 port: 80
@@ -61,11 +61,11 @@
           apiVersion: route.openshift.io/v1
           kind: Route
           metadata:
-            name: simple-apache-route # New name for route
+            name: final-apache-route # NEW ROUTE NAME
             namespace: aap # CONFIRMED ROSA PROJECT NAME
           spec:
             to:
               kind: Service
-              name: simple-apache-svc # Matches new service name
+              name: final-apache-svc # Matches new service name
             port:
               targetPort: 80
