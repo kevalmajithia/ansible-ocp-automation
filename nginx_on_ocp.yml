@@ -1,5 +1,6 @@
 - name: Deploy NGINX Hello World App on OpenShift
   hosts: localhost
+  connection: local  
   gather_facts: no
   collections:
     - kubernetes.core
