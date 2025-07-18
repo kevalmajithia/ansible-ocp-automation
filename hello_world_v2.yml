@@ -1,0 +1,51 @@
+- name: Deploy Basic Hello World App (Echoserver)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Deploy Simple Hello World Web Server
+      kubernetes.core.k8s:
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+        state: present
+        definition:
+          - apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: basic-hello-world
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+              labels:
+                app: basic-hello-world
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: basic-hello-world
+              template:
+                metadata:
+                  labels:
+                    app: basic-hello-world
+                spec:
+                  containers:
+                    - name: hello-container
+                      image: k8s.gcr.io/echoserver:1.4 # CHANGED TO ECHOSERVER
+                      ports:
+                        - containerPort: 8080
+                      imagePullPolicy: IfNotPresent
+                      securityContext: # Ensure non-root for OpenShift
+                        runAsNonRoot: true
+                        allowPrivilegeEscalation: false
+          - apiVersion: v1
+            kind: Service
+            metadata:
+              name: basic-hello-world-svc
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+              labels:
+                app: basic-hello-world
+            spec:
+              selector:
+                app: basic-hello-world
+              ports:
+                - protocol: TCP
+                  port: 8080
+                  targetPort: 8080
+              type: ClusterIP # Internal service
