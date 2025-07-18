@@ -1,4 +1,4 @@
-- name: Deploy Basic Hello World App
+- name: Deploy Basic Hello World App (Echoserver)
   hosts: localhost
   connection: local
   gather_facts: false
@@ -27,13 +27,13 @@
                 spec:
                   containers:
                     - name: hello-container
-                      image: k8s.gcr.io/echoserver:1.4 # Very simple echo server
+                      image: k8s.gcr.io/echoserver:1.4 # CHANGED TO ECHOSERVER
                       ports:
                         - containerPort: 8080
                       imagePullPolicy: IfNotPresent
                       securityContext: # Ensure non-root for OpenShift
                         runAsNonRoot: true
-                        allowPrivilegeEscalation: false # Good practice
+                        allowPrivilegeEscalation: false
           - apiVersion: v1
             kind: Service
             metadata:
