@@ -1,9 +1,10 @@
-- name: Deploy Simple Nginx App on OpenShift (SCC & Port Compliant)
+---
+- name: Deploy Simple Nginx App on OpenShift (Using Existing ConfigMap)
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
-    - name: Apply Nginx Deployment, Service, and Route
+    - name: Apply Nginx DeploymentConfig, Service, and Route
       kubernetes.core.k8s:
         kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
         state: present
@@ -22,17 +23,24 @@
                   labels:
                     app: simple-nginx-app
                 spec:
+                  volumes: # ADDED Volume to mount ConfigMap
+                    - name: nginx-config-volume
+                      configMap:
+                        name: nginx-config # REFERENCING MANUALLY CREATED CONFIGMAP
                   containers:
                     - name: nginx
-                      image: nginxinc/nginx-unprivileged:latest # Image runs on non-privileged port
+                      image: nginxinc/nginx-unprivileged:latest
                       ports:
-                        - containerPort: 8080 # Port changed to 8080
+                        - containerPort: 8080
                       imagePullPolicy: IfNotPresent
-                      securityContext: # Security Context for non-root
+                      securityContext:
                         runAsNonRoot: true
-              triggers: # MODIFIED: Only ConfigChange trigger remains
-                - type: ConfigChange # Keep this trigger
-                # REMOVED: - type: ImageChange block that caused the error
+                      volumeMounts: # ADDED Volume Mount
+                        - name: nginx-config-volume
+                          mountPath: /etc/nginx/nginx.conf
+                          subPath: nginx.conf # Mount as a file, not a directory
+              triggers:
+                - type: ConfigChange
           - apiVersion: v1
             kind: Service
             metadata:
@@ -43,8 +51,8 @@
                 app: simple-nginx-app
               ports:
                 - protocol: TCP
-                  port: 8080 # Service port changed to 8080
-                  targetPort: 8080 # Target port changed to 8080
+                  port: 8080
+                  targetPort: 8080
           - apiVersion: route.openshift.io/v1
             kind: Route
             metadata:
@@ -55,7 +63,7 @@
                 kind: Service
                 name: simple-nginx-svc
               port:
-                targetPort: 8080-tcp # Route target port changed to 8080-tcp
+                targetPort: 8080-tcp
               tls:
                 termination: edge
                 insecureEdgeTerminationPolicy: Redirect
