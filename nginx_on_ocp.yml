@@ -1,69 +1,51 @@
----
-- name: Deploy Simple Nginx App on OpenShift (Using Existing ConfigMap)
+- name: Deploy Basic Hello World App
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
-    - name: Apply Nginx DeploymentConfig, Service, and Route
+    - name: Deploy Simple Hello World Web Server
       kubernetes.core.k8s:
         kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
         state: present
         definition:
-          - apiVersion: apps.openshift.io/v1
-            kind: DeploymentConfig
+          - apiVersion: apps/v1
+            kind: Deployment
             metadata:
-              name: simple-nginx-app
+              name: basic-hello-world
               namespace: aap # CONFIRMED ROSA PROJECT NAME
+              labels:
+                app: basic-hello-world
             spec:
               replicas: 1
               selector:
-                app: simple-nginx-app
+                matchLabels:
+                  app: basic-hello-world
               template:
                 metadata:
                   labels:
-                    app: simple-nginx-app
+                    app: basic-hello-world
                 spec:
-                  volumes: # ADDED Volume to mount ConfigMap
-                    - name: nginx-config-volume
-                      configMap:
-                        name: nginx-config # REFERENCING MANUALLY CREATED CONFIGMAP
                   containers:
-                    - name: nginx
-                      image: nginxinc/nginx-unprivileged:latest
+                    - name: hello-container
+                      image: k8s.gcr.io/echoserver:1.4 # Very simple echo server
                       ports:
                         - containerPort: 8080
                       imagePullPolicy: IfNotPresent
-                      securityContext:
+                      securityContext: # Ensure non-root for OpenShift
                         runAsNonRoot: true
-                      volumeMounts: # ADDED Volume Mount
-                        - name: nginx-config-volume
-                          mountPath: /etc/nginx/nginx.conf
-                          subPath: nginx.conf # Mount as a file, not a directory
-              triggers:
-                - type: ConfigChange
+                        allowPrivilegeEscalation: false # Good practice
           - apiVersion: v1
             kind: Service
             metadata:
-              name: simple-nginx-svc
+              name: basic-hello-world-svc
               namespace: aap # CONFIRMED ROSA PROJECT NAME
+              labels:
+                app: basic-hello-world
             spec:
               selector:
-                app: simple-nginx-app
+                app: basic-hello-world
               ports:
                 - protocol: TCP
                   port: 8080
                   targetPort: 8080
-          - apiVersion: route.openshift.io/v1
-            kind: Route
-            metadata:
-              name: simple-nginx-route
-              namespace: aap # CONFIRMED ROSA PROJECT NAME
-            spec:
-              to:
-                kind: Service
-                name: simple-nginx-svc
-              port:
-                targetPort: 8080-tcp
-              tls:
-                termination: edge
-                insecureEdgeTerminationPolicy: Redirect
+              type: ClusterIP # Internal service
