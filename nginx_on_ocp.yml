@@ -1,51 +1,61 @@
-- name: Deploy Basic Hello World App (Echoserver)
+- name: Deploy Simple Nginx App on OpenShift (SCC & Port Compliant)
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
-    - name: Deploy Simple Hello World Web Server
+    - name: Apply Nginx Deployment, Service, and Route
       kubernetes.core.k8s:
         kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
         state: present
         definition:
-          - apiVersion: apps/v1
-            kind: Deployment
+          - apiVersion: apps.openshift.io/v1
+            kind: DeploymentConfig
             metadata:
-              name: basic-hello-world
+              name: simple-nginx-app
               namespace: aap # CONFIRMED ROSA PROJECT NAME
-              labels:
-                app: basic-hello-world
             spec:
               replicas: 1
               selector:
-                matchLabels:
-                  app: basic-hello-world
+                app: simple-nginx-app
               template:
                 metadata:
                   labels:
-                    app: basic-hello-world
+                    app: simple-nginx-app
                 spec:
                   containers:
-                    - name: hello-container
-                      image: k8s.gcr.io/echoserver:1.4 # CHANGED TO ECHOSERVER
+                    - name: nginx
+                      image: nginxinc/nginx-unprivileged:latest # Image runs on non-privileged port
                       ports:
-                        - containerPort: 8080
+                        - containerPort: 8080 # Port changed to 8080
                       imagePullPolicy: IfNotPresent
-                      securityContext: # Ensure non-root for OpenShift
+                      securityContext: # Security Context for non-root
                         runAsNonRoot: true
-                        allowPrivilegeEscalation: false
+              triggers: # MODIFIED: Only ConfigChange trigger remains
+                - type: ConfigChange # Keep this trigger
+                # REMOVED: - type: ImageChange block that caused the error
           - apiVersion: v1
             kind: Service
             metadata:
-              name: basic-hello-world-svc
+              name: simple-nginx-svc
               namespace: aap # CONFIRMED ROSA PROJECT NAME
-              labels:
-                app: basic-hello-world
             spec:
               selector:
-                app: basic-hello-world
+                app: simple-nginx-app
               ports:
                 - protocol: TCP
-                  port: 8080
-                  targetPort: 8080
-              type: ClusterIP # Internal service
+                  port: 8080 # Service port changed to 8080
+                  targetPort: 8080 # Target port changed to 8080
+          - apiVersion: route.openshift.io/v1
+            kind: Route
+            metadata:
+              name: simple-nginx-route
+              namespace: aap # CONFIRMED ROSA PROJECT NAME
+            spec:
+              to:
+                kind: Service
+                name: simple-nginx-svc
+              port:
+                targetPort: 8080-tcp # Route target port changed to 8080-tcp
+              tls:
+                termination: edge
+                insecureEdgeTerminationPolicy: Redirect
